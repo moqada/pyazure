@@ -41,8 +41,6 @@ from urlparse import urlsplit, urljoin
 from datetime import datetime, timedelta
 from StringIO import StringIO
 import logging
-log = logging.getLogger('pyazure')
-log.setLevel(logging.WARN)
 try:
     # new in Python2.7
     from collections import OrderedDict
@@ -54,6 +52,10 @@ try:
 except ImportError:
     from xml.etree import ElementTree as etree
 
+log = logging.getLogger('pyazure')
+log.setLevel(logging.WARN)
+console_handler = logging.StreamHandler()
+log.addHandler(console_handler)
 
 # Constants
 ################################################################################
@@ -505,24 +507,18 @@ def create_data_connection_string(storage_account_name, storage_account_key):
         return u'UseDevelopmentStorage=true'
 
 class ServiceManagementEndpoint(object):
+    """Base class for the various service management API operation groups."""
 
-    # static OpenerDirector for all sub-classes
-    # NB: NOT thread-safe
-    _cert_handler = None
-    _opener = None
-   
     def __init__(self, management_cert_path, subscription_id):
         if not os.path.isfile(management_cert_path):
             raise ValueError('Management certificate not readable or not '
                 + 'a real file')
         self.cert = management_cert_path
         self.sub_id = subscription_id
-        if not ServiceManagementEndpoint._cert_handler:
-            ServiceManagementEndpoint._cert_handler = \
-                HTTPSClientAuthHandler(self.cert)
-            ServiceManagementEndpoint._opener = \
-                urllib2.build_opener(self._cert_handler)
-        #urllib2.install_opener(ServiceManagementEndpoint._opener)
+        self._cert_handler = \
+            HTTPSClientAuthHandler(self.cert)
+        self._opener = \
+            urllib2.build_opener(self._cert_handler)
 
     @property
     def base_url(self):
@@ -533,7 +529,7 @@ class ServiceManagementEndpoint(object):
         OpenDirector, which handles HTTPS client cert authn for the API.
         Expects a urllib2.Request object."""
         try:
-            return ServiceManagementEndpoint._opener.open(request)
+            return self._opener.open(request)
         except urllib2.HTTPError, e:
             log.debug('HTTP Response: %s %s', e.code, e.msg)
             self._raise_wa_error(e)
