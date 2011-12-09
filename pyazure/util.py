@@ -37,7 +37,7 @@ import hashlib
 import urllib2
 import httplib
 import os.path
-from urlparse import urlsplit, urljoin
+from urlparse import urlsplit, urljoin, parse_qs
 from datetime import datetime, timedelta
 from StringIO import StringIO
 import logging
@@ -411,12 +411,7 @@ class SharedKeyCredentials(object):
             urlsplit(request.get_full_url())
         if use_path_style_uris:
             path = path[path.index('/'):]
-
-        canonicalized_resource = "/" + self._account + path
-        match = re.search(r'comp=[^&]*', query)
-        if match is not None:
-            canonicalized_resource += "?" + match.group(0)
-            
+        
         if use_path_style_uris is None:
             use_path_style_uris = re.match('^[\d.:]+$', host) is not None
 
@@ -426,22 +421,34 @@ class SharedKeyCredentials(object):
 
         # verb
         string_to_sign = request.get_method().upper() + NEW_LINE
-        # MD5 not required
-        string_to_sign += NEW_LINE
-        # Content-Type
-        if request.get_header('Content-type') is not None:
-            string_to_sign += request.get_header('Content-type')
-        string_to_sign += NEW_LINE
+        
+        for field in ['Content-encoding', 'Content-language', 'Content-length', 'Content-MD5', 'Content-Type']:
+            if request.has_header(field):
+                string_to_sign += request.get_header(field)
+            string_to_sign += NEW_LINE
+        
+        # Date
         if for_tables:
             string_to_sign += request.get_header(PREFIX_STORAGE_HEADER.capitalize() + 'date') + NEW_LINE
         else:
-            # Date
             string_to_sign += NEW_LINE
+
+        for field in ['If-modified-since', 'If-match', 'If-none-match', 'If-unmodified-since', 'Range']:
+            if request.get_header(field) is not None:
+                string_to_sign += request.get_header(field)
+            string_to_sign += NEW_LINE
+        
+        # Canonicalized headers
         if not for_tables:
-            # Canonicalized headers
             string_to_sign += canonicalized_headers + NEW_LINE
+        
         # Canonicalized resource
-        string_to_sign += canonicalized_resource
+        string_to_sign +=  "/" + self._account + path
+        for key, value in parse_qs(query).iteritems():
+            string_to_sign += NEW_LINE
+            string_to_sign += key + ":" + value[0]
+        
+        print string_to_sign
         
         request.add_header('Authorization', 'SharedKey ' + self._account + ':'
             + base64.encodestring(hmac.new(self._key,
