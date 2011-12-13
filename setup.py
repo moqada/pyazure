@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 from setuptools import setup
-from pandora import DATA_FILES
 
 setup(name='pyazure',
-    version='0.1',
+    version='0.1b',
     description='Python wrapper around Windows Azure storage and management REST APIs',
     url='https://github.com/bmb/pyazure',
     packages = ['pyazure'],
