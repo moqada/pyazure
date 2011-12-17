@@ -614,7 +614,7 @@ class ServiceManagementEndpoint(object):
     def _raise_wa_error(self, response):
         """Raise a WASMError exception populated with values derived from
         _get_wa_error."""
-        raise WASMError(*self._get_wa_error(response), httperror=response)
+        raise WASMError(httperror=response, *self._get_wa_error(response))
 
 class HTTPSClientAuthHandler(urllib2.HTTPSHandler):
 # thanks to: http://stackoverflow.com/questions/5896380/https-connection-
