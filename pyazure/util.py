@@ -328,7 +328,8 @@ def retry(retries, delay=2, backoff=2, delay_ceiling=0, percolate_excs=()):
     if backoff <= 1:
         raise ValueError("backoff must be greater than 1")
 
-    retries = math.floor(retries)
+    if retries != float('infinity'):
+        retries = math.floor(retries)
     if retries < 1:
         raise ValueError("retries must be 1 or greater")
 
@@ -531,8 +532,22 @@ class ServiceManagementEndpoint(object):
         try:
             return self._opener.open(request)
         except urllib2.HTTPError, e:
-            log.debug('HTTP Response: %s %s', e.code, e.msg)
-            self._raise_wa_error(e)
+            # Python 2.5 raises HTTPError on anything but 200 or 206
+            if 200 <= e.code < 300:
+                return e
+            # real error
+            log.warn('HTTP Response: %s %s', e.code, e.msg)
+            try:
+                self._raise_wa_error(e)
+            except WASMError:
+                # OK, WASMError exception successfully crafted
+                raise
+            except Exception, e2:
+                log.error("Could't create Windows Azure error exception " +
+                    "following HTTPError:%s%s%s" +
+                    "there was probably a problem querying the service.",
+                    os.sep, str(e), os.sep)
+                raise (e2, e)
 
     def get_operation_status(self, request_id):
         """The Get Operation Status operation returns the status of the
@@ -599,7 +614,7 @@ class ServiceManagementEndpoint(object):
             './/{%s}HttpStatusCode' % NAMESPACE_MANAGEMENT)
         if http_status_code is None:
             # just a regular synchronous response
-            http_status_code = response.getcode()
+            http_status_code = response.code
         else:
             http_status_code = int(http_status_code)
         # NB: careful: bool(Element instance) returns False!
@@ -621,7 +636,7 @@ class HTTPSClientAuthHandler(urllib2.HTTPSHandler):
 #   using-pem-certificate/5899320#5899320
     def __init__(self, cert):
         urllib2.HTTPSHandler.__init__(self, debuglevel=0)
-        self.key = None # assume key & cert together in PEM encoded cert_file
+        self.key = '/pandora/messagelab/blair/azure/BlairBethwaiteAzure1.pfx.pem.key'  # assume key & cert together in PEM encoded cert_file
         self.cert = cert
     
     def https_open(self, req):
