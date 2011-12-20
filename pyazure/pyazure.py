@@ -42,7 +42,8 @@ class PyAzure(object):
 
     def __init__(self, storage_account_name=DEVSTORE_ACCOUNT,
             storage_account_key=None, use_path_style_uris=False,
-            management_cert_path=None, subscription_id=None):
+            management_cert_path=None, management_key_path=None,
+            subscription_id=None):
         self.storage_account = storage_account_name
         if storage_account_name == DEVSTORE_ACCOUNT:
             blob_host = DEVSTORE_BLOB_HOST
@@ -56,7 +57,8 @@ class PyAzure(object):
             table_host = CLOUD_TABLE_HOST
         
         if management_cert_path and subscription_id:
-            self.wasm = WASM(management_cert_path, subscription_id)
+            self.wasm = WASM(management_cert_path, subscription_id,
+                management_key_path)
         else:
             self.wasm = None
 
@@ -132,13 +134,15 @@ class PyAzure(object):
 
 
 class WASM(object):
-    """Class exposing Windows Azure Service Management operations.
+    """Single class that conveniently exposes Windows Azure Service Management
+    operations from those implemented and explicitly exposed by the individual
+    service wrappers.
     
     Using WASM
     ----------
     >>> import pyazure
     >>> pa = pyazure.PyAzure(management_cert_path=MANAGEMENT_CERT, 
-    ... subscription_id=SUBSCRIPTION_ID)
+    ... subscription_id=SUBSCRIPTION_ID, management_key_path=MANAGEMENT_KEY)
     >>> 'Anywhere Asia' in pa.wasm.list_locations()
     True
     >>> request_id = pa.wasm.create_storage_account('pyazuretest','doctest',
@@ -146,7 +150,7 @@ class WASM(object):
     >>> pa.wasm.wait_for_request(request_id)
     True
     >>> (pa.wasm.get_operation_status(request_id) == 
-    ... {'HttpStatusCode': '200', 'Status': 'Succeeded'})
+    ... {'HttpStatusCode': 200, 'Status': 'Succeeded'})
     True
     >>> request_id = pa.wasm.create_storage_account(
     ... 'pyazuretestwithaverylongname','doctest','anywhere us')
@@ -188,19 +192,27 @@ class WASM(object):
     WASMError: (404, 'ResourceNotFound', 'The requested storage account was not found.')
     """
 
-    def __init__(self, management_cert_path, subscription_id):
+    def __init__(self, management_cert_path, subscription_id,
+            management_key_path=None):
+        """Initialise the various API interfaces.
+        
+        Note that management_key_path is not required (except for Python 2.5),
+        as the key can be included in the certificate chain file. The OpenSSL
+        command line can create an appropriate PEM file like so:
+        openssl pkcs12 -in azure.pfx -out azure.pem -nodes
+        """
         from hostedservices import HostedServices, ServiceConfiguration
         from storageaccounts import StorageAccounts
         from locations import Locations
         self.service_api = HostedServices(management_cert_path,
-            subscription_id)
+            subscription_id, management_key_path)
         self.ServiceConfiguration = ServiceConfiguration
         self.storage_api = StorageAccounts(management_cert_path,
-            subscription_id)
+            subscription_id, management_key_path)
         self.location_api = Locations(management_cert_path,
-            subscription_id)
+            subscription_id, management_key_path)
         self._sme = ServiceManagementEndpoint(management_cert_path,
-            subscription_id)
+            subscription_id, management_key_path)
         self.WASMError = WASMError
         self.get_operation_status = self._sme.get_operation_status
         self.request_done = self._sme.request_done
@@ -234,13 +246,13 @@ if __name__ == '__main__':
     import getopt
     try:
         opts, _ = getopt.getopt(sys.argv[1:],
-            'hs:c:v',
-            ['help','subscription_id','management_cert','verbose'])
+            'hvs:c:k:',
+            ['help','verbose','subscription_id','management_cert',
+                'management_key'])
     except getopt.GetoptError, e:
         print str(e)
         sys.exit(2)
-    sub_id = None
-    cert = None
+    sub_id = cert = key = None
     loud = False
     for opt, arg in opts:
         if opt in ('-h','--help'):
@@ -250,12 +262,15 @@ if __name__ == '__main__':
             sub_id = arg
         elif opt in ('-c','--management_cert'):
             cert = arg
+        elif opt in ('-k','--management_key'):
+            key = arg
         elif opt in ('-v','--verbose'):
             loud = True
     if sub_id is None or cert is None:
         usage()
         sys.exit(2)
     doctest.testmod(
-        extraglobs={'SUBSCRIPTION_ID':sub_id, 'MANAGEMENT_CERT':cert},
+        extraglobs={'SUBSCRIPTION_ID':sub_id, 'MANAGEMENT_CERT':cert,
+            'MANAGEMENT_KEY':key},
         verbose = loud)
     sys.exit()

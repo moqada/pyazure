@@ -510,14 +510,22 @@ def create_data_connection_string(storage_account_name, storage_account_key):
 class ServiceManagementEndpoint(object):
     """Base class for the various service management API operation groups."""
 
-    def __init__(self, management_cert_path, subscription_id):
+    def __init__(self, management_cert_path, subscription_id,
+            management_key_path=None):
         if not os.path.isfile(management_cert_path):
             raise ValueError('Management certificate not readable or not '
-                + 'a real file')
+                + 'a real file', management_cert_path)
+        if (management_key_path is not None) and \
+                not os.path.isfile(management_key_path):
+            raise ValueError('Management key not readable or not '
+                + 'a real file', management_key_path)
         self.cert = management_cert_path
+        self.key = management_key_path
         self.sub_id = subscription_id
+        log.debug('init ServiceManagementEndpoint; cert:%s, key:%s, sub_id:%s',
+            self.cert, self.key, self.sub_id)
         self._cert_handler = \
-            HTTPSClientAuthHandler(self.cert)
+            HTTPSClientAuthHandler(self.cert, self.key)
         self._opener = \
             urllib2.build_opener(self._cert_handler)
 
@@ -542,12 +550,12 @@ class ServiceManagementEndpoint(object):
             except WASMError:
                 # OK, WASMError exception successfully crafted
                 raise
-            except Exception, e2:
+            except Exception:
                 log.error("Could't create Windows Azure error exception " +
                     "following HTTPError:%s%s%s" +
                     "there was probably a problem querying the service.",
-                    os.sep, str(e), os.sep)
-                raise (e2, e)
+                    os.linesep, str(e), os.linesep)
+                raise
 
     def get_operation_status(self, request_id):
         """The Get Operation Status operation returns the status of the
@@ -569,6 +577,11 @@ class ServiceManagementEndpoint(object):
         # Succeeded or Failed...
         result['HttpStatusCode'] = ET.findtext(
             './/{%s}HttpStatusCode' % NAMESPACE_MANAGEMENT)
+        try:
+            result['HttpStatusCode'] = int(result['HttpStatusCode'])
+        except ValueError:
+            log.error("Couldn't convert HttpStatusCode: %s, from operation "
+                "response", result['HttpStatusCode'])
         if result['Status'] == 'Succeeded':
             return result
         # Status must be 'Failed', get additional error info
@@ -589,21 +602,19 @@ class ServiceManagementEndpoint(object):
         else:
             raise op_status['Error']
 
-    @retry(float('infinity'),delay_ceiling=20, percolate_excs=(WASMError))
+    @retry(float('infinity'), delay_ceiling=20, percolate_excs=(WASMError))
     def wait_for_request(self, request_id):
         """Example showing how to repeatedly poll asynchronous operation status
         with retry and backoff provided by retry decorator. Tries forever."""
         return self.request_done(request_id)
 
-    def _get_wa_error(self, response):
+    def _get_wa_error(self, response, response_ET=None):
         """Extracts error details from a urlopen response, including extended
-        WA error details that might be included in the response body."""
-        if not isinstance(response, etree.ElementTree):
-            response_data = response.read()
-            ET = etree.parse(StringIO(response_data))
-        else:
-            # assume response is a preparsed response body
-            ET = response
+        WA error details that might be included in the response body.
+        
+        response_ET can be passed in if it has already been read from the
+        network, to save re-parsing."""
+        ET = etree.parse(response) if response_ET is None else response_ET
         if 'Error' in ET.getroot().tag:
             error = ET.getroot()
         else:
@@ -617,7 +628,7 @@ class ServiceManagementEndpoint(object):
             http_status_code = response.code
         else:
             http_status_code = int(http_status_code)
-        # NB: careful: bool(Element instance) returns False!
+        # NB: careful: bool(Element_instance) returns False!
         if error is not None:
             # the service returned extended WA error info
             wa_code = error.findtext('{%s}Code' % NAMESPACE_MANAGEMENT)
@@ -634,9 +645,12 @@ class ServiceManagementEndpoint(object):
 class HTTPSClientAuthHandler(urllib2.HTTPSHandler):
 # thanks to: http://stackoverflow.com/questions/5896380/https-connection-
 #   using-pem-certificate/5899320#5899320
-    def __init__(self, cert):
+    def __init__(self, cert, key=None):
         urllib2.HTTPSHandler.__init__(self, debuglevel=0)
-        self.key = '/pandora/messagelab/blair/azure/BlairBethwaiteAzure1.pfx.pem.key'  # assume key & cert together in PEM encoded cert_file
+        # key & cert can be:
+        # 1) together in PEM encoded cert chain file (Python >= 2.6)
+        # 2) seperated into cert and key PEM files, required under Python 2.5
+        self.key = key
         self.cert = cert
     
     def https_open(self, req):

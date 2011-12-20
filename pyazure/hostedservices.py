@@ -46,13 +46,12 @@ from locations import Locations
 
 class HostedServices(ServiceManagementEndpoint):
     
-    def __init__(self, management_cert_path, subscription_id):
+    def __init__(self, *args, **kwargs):
         log.debug("init hosted service")
         self.wasm_ops = self.get_wasm_ops()
         self._locations = None
         self.last_response_data = None
-        super(HostedServices, self).__init__(management_cert_path,
-            subscription_id)
+        super(HostedServices, self).__init__(*args, **kwargs)
     
     @property
     def base_url(self):
@@ -64,7 +63,7 @@ class HostedServices(ServiceManagementEndpoint):
         # cached list of data center locations for deployments
         if not self._locations:
             self._locations = list(Locations(self.cert,
-                self.sub_id).list_locations())
+                self.sub_id, self.key).list_locations())
         return self._locations
 
     def get_wasm_ops(self):

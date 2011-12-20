@@ -37,11 +37,10 @@ from util import *
 
 class Locations(ServiceManagementEndpoint):
 
-    def __init__(self, management_cert_path, subscription_id):
+    def __init__(self, *args, **kwargs):
         log.debug('init locations')
         self.wasm_ops = []
-        super(Locations, self).__init__(management_cert_path,
-            subscription_id)
+        super(Locations, self).__init__(*args, **kwargs)
 
     @property
     def base_url(self):
