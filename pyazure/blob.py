@@ -43,18 +43,21 @@ class BlobStorage(Storage):
                                           use_path_style_uris)
 
     def create_container(self, container_name, is_public = False):
-        req = RequestWithMethod("PUT", "%s/%s" % (self.get_base_url(), container_name))
+        req = RequestWithMethod("PUT", "%s/%s?restype=container" % (self.get_base_url(), container_name))
         req.add_header("Content-Length", "0")
-        if is_public: req.add_header(PREFIX_PROPERTIES + "publicaccess", "true")
+        req.add_header("x-ms-version", "2011-08-18")
+        if is_public: req.add_header("x-ms-blob-public-access", "true")
         self._credentials.sign_request(req)
         try:
             response = urlopen(req)
             return response.code
         except URLError, e:
+            print e
             return e.code
 
     def delete_container(self, container_name):
-        req = RequestWithMethod("DELETE", "%s/%s" % (self.get_base_url(), container_name))
+        req = RequestWithMethod("DELETE", "%s/%s?restype=container" % (self.get_base_url(), container_name))
+        req.add_header("x-ms-version", "2011-08-18")
         self._credentials.sign_request(req)
         try:
             response = urlopen(req)
@@ -64,35 +67,37 @@ class BlobStorage(Storage):
 
     def list_containers(self):
         req = Request("%s/?comp=list" % self.get_base_url())
+        req.add_header("x-ms-version", "2011-08-18")
         self._credentials.sign_request(req)
-        #dom = etree.fromstring(urlopen(req).read())
         dom = etree.parse(urlopen(req))
+        
         containers = dom.findall(".//Container")
         for container in containers:
             container_name = container.find("Name").text
-            etag = container.find("Etag").text
-            last_modified = time.strptime(container.find("LastModified").text, TIME_FORMAT)
+            properties = container.find("Properties")
+            etag = properties.find("Etag").text
+            last_modified = time.strptime(properties.find("Last-Modified").text, TIME_FORMAT)
             yield (container_name, etag, last_modified)
 
     def list_blobs(self, container_name):
-        req = Request("%s/%s?comp=list" % (self.get_base_url(), container_name))
+        req = Request("%s/%s?restype=container&comp=list" % (self.get_base_url(), container_name))
+        req.add_header("x-ms-version", "2011-08-18")
         self._credentials.sign_request(req)
         dom = etree.fromstring(urlopen(req).read())
-        containers = dom.findall(".//Blob")
-        for container in containers:
-            container_name = container.find("Name").text
-            etag = container.find("Etag").text
-            last_modified = time.strptime(container.find("LastModified").text, TIME_FORMAT)
-            yield (container_name, etag, last_modified)
+        blobs = dom.findall(".//Blob")
+        for blob in blobs:
+            blob_name = blob.find("Name").text
+            blob_properties = blob.find("Properties")
+            etag = blob_properties.find("Etag").text
+            last_modified = time.strptime(blob_properties.find("Last-Modified").text, TIME_FORMAT)
+            yield (blob_name, etag, last_modified)
 
-    def put_blob(self, container_name, blob_name, data, content_type = None):
+    def put_blob(self, container_name, blob_name, data, content_type = None, page_block = False):
         req = RequestWithMethod("PUT", "%s/%s/%s" % (self.get_base_url(), container_name, blob_name), data=data)
+        req.add_header("x-ms-version", "2011-08-18")
+        req.add_header("x-ms-blob-type", "PageBlob" if page_block else "BlockBlob")
         req.add_header("Content-Length", "%d" % len(data))
-        if content_type is not None:
-            req.add_header("Content-Type", content_type)
-        else:
-            # urllib2 has dubious content-type meddling behaviour
-            req.add_header("Content-Type", "")
+        req.add_header("Content-Type", content_type if content_type is not None else "") # urllib2 has dubious content-type meddling behaviour
         self._credentials.sign_request(req)
         try:
             response = urlopen(req)
@@ -102,11 +107,12 @@ class BlobStorage(Storage):
 
     def get_blob(self, container_name, blob_name):
         req = Request("%s/%s/%s" % (self.get_base_url(), container_name, blob_name))
+        req.add_header("x-ms-version", "2011-08-18")
         self._credentials.sign_request(req)
         return urlopen(req).read()
     
     def delete_blob(self, container_name, blob_name):
-        req = Request("DELETE", "%s/%s/%s" % (self.get_base_url(), container_name,
-                      blob_name))
+        req = RequestWithMethod("DELETE", "%s/%s/%s" % (self.get_base_url(), container_name, blob_name))
+        req.add_header("x-ms-version", "2011-08-18")
         self._credentials.sign_request(req)
         return urlopen(req).read()

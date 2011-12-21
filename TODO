@@ -23,4 +23,3 @@
 - general refactoring (particularly of utils.py)
 - unify handling of errors (storage ops should throw a wrapped HTTPError where
   appropriate)
-- create install script
