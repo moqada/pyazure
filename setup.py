@@ -2,7 +2,7 @@
 from setuptools import setup
 
 setup(name='pyazure',
-    version='0.1b',
+    version='0.2',
     description='Python wrapper around Windows Azure storage and management REST APIs',
     url='https://github.com/bmb/pyazure',
     packages = ['pyazure'],
