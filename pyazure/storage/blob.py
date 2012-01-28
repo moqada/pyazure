@@ -91,8 +91,9 @@ class BlobStorage(Storage):
             blob_name = blob.find("Name").text
             blob_properties = blob.find("Properties")
             etag = blob_properties.find("Etag").text
+            size = blob_properties.find("Content-Length").text
             last_modified = time.strptime(blob_properties.find("Last-Modified").text, TIME_FORMAT)
-            yield (blob_name, etag, last_modified)
+            yield (blob_name, etag, last_modified, size)
 
     def put_blob(self, container_name, blob_name, data, content_type = None, page_block = False):
         req = RequestWithMethod("PUT", "%s/%s/%s" % (self.base_url, container_name, blob_name), data=data)
