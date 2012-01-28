@@ -46,7 +46,7 @@ class BlobStorage(Storage):
         req = RequestWithMethod("PUT", "%s/%s?restype=container" % (self.get_base_url(), container_name))
         req.add_header("Content-Length", "0")
         req.add_header("x-ms-version", "2011-08-18")
-        if is_public: req.add_header("x-ms-blob-public-access", "true")
+        if is_public: req.add_header("x-ms-blob-public-access", "blob")
         self._credentials.sign_request(req)
         try:
             response = urlopen(req)
