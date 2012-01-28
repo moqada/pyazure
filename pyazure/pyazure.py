@@ -31,53 +31,33 @@ License:
 import sys
 
 from util import *
-from blob import BlobStorage
-from queue import QueueStorage
-from table import TableStorage
+from storage import *
 
 class PyAzure(object):
     """Class exposing Windows Azure storage and, if initialised appropriately,
     service management operations.    
     """
 
-    def __init__(self, storage_account_name=DEVSTORE_ACCOUNT,
-            storage_account_key=None, use_path_style_uris=False,
-            management_cert_path=None, management_key_path=None,
-            subscription_id=None):
+    def __init__(self,
+            storage_account_name=None, storage_account_key=None, use_path_style_uris=False,
+            management_cert_path=None, management_key_path=None, subscription_id=None):
         self.storage_account = storage_account_name
-        if storage_account_name == DEVSTORE_ACCOUNT:
-            blob_host = DEVSTORE_BLOB_HOST
-            queue_host = DEVSTORE_QUEUE_HOST
-            table_host = DEVSTORE_TABLE_HOST
-            if not storage_account_key:
-                storage_account_key = DEVSTORE_SECRET_KEY
-        else:
-            blob_host = CLOUD_BLOB_HOST
-            queue_host = CLOUD_QUEUE_HOST
-            table_host = CLOUD_TABLE_HOST
         
         if management_cert_path and subscription_id:
-            self.wasm = WASM(management_cert_path, subscription_id,
-                management_key_path)
+            self.wasm = WASM(management_cert_path, subscription_id, management_key_path)
         else:
             self.wasm = None
 
         if not storage_account_key:
             if not self.wasm:
-                raise WAError('Windows Azure Service Management API '
-                    + 'not available.')
-            storage_account_key, _, _ = self.wasm.get_storage_account_keys(
-                storage_account_name)
+                raise WAError('Windows Azure Service Management API not available.')
+            storage_account_key, _, _ = self.wasm.get_storage_account_keys(storage_account_name)
 
-        self.blobs = BlobStorage(blob_host, storage_account_name,
-            storage_account_key, use_path_style_uris)
-        self.tables = TableStorage(table_host, storage_account_name,
-            storage_account_key, use_path_style_uris)
-        self.queues = QueueStorage(queue_host, storage_account_name,
-            storage_account_key, use_path_style_uris)
+        self.blobs  = BlobStorage(storage_account_name, storage_account_key, use_path_style_uris)
+        self.tables = TableStorage(storage_account_name, storage_account_key, use_path_style_uris)
+        self.queues = QueueStorage(storage_account_name, storage_account_key, use_path_style_uris)
         self.WAError = WAError
-        self.data_connection_string = create_data_connection_string(
-            storage_account_name, storage_account_key)
+        self.data_connection_string = self.blobs.create_data_connection_string()
 
     def set_storage_account(self, storage_account_name, create=False,
             location_or_affinity_group='Anywhere US'):

@@ -34,7 +34,9 @@ except ImportError:
     from xml.etree import ElementTree as etree
 from urllib2 import Request, urlopen, URLError
 
-from util import *
+from . import Storage
+from pyazure.util import *
+
 
 class Table(object):
     def __init__(self, url, name):
@@ -46,10 +48,12 @@ class TableEntity(object): pass
 class TableStorage(Storage):
     '''Due to local development storage not supporting SharedKey authentication, this class
        will only work against cloud storage.'''
-    def __init__(self, host, account_name, secret_key,
-            use_path_style_uris=None):
-        super(TableStorage, self).__init__(host, account_name, secret_key,
-            use_path_style_uris)
+    
+    CLOUD_HOST = "table.core.windows.net"
+    DEVSTORE_HOST = "127.0.0.1:10002"
+    
+    def __init__(self, *args, **kwargs):
+        super(TableStorage, self).__init__(*args, **kwargs)
 
     def create_table(self, name):
         data = """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
@@ -66,10 +70,10 @@ class TableStorage(Storage):
     </m:properties>
   </content>
 </entry>""" % (time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()), name)
-        req = RequestWithMethod("POST", "%s/Tables" % self.get_base_url(), data=data)
+        req = RequestWithMethod("POST", "%s/Tables" % self.base_url, data=data)
         req.add_header("Content-Length", "%d" % len(data))
         req.add_header("Content-Type", "application/atom+xml")
-        self._credentials.sign_table_request(req)
+        self.credentials.sign_table_request(req)
         try:
             response = urlopen(req)
             return response.code
@@ -77,9 +81,8 @@ class TableStorage(Storage):
             return e.code
 
     def delete_table(self, name):
-        req = RequestWithMethod("DELETE", "%s/Tables('%s')" % \
-                                (self.get_base_url(), name))
-        self._credentials.sign_table_request(req)
+        req = RequestWithMethod("DELETE", "%s/Tables('%s')" % (self.base_url, name))
+        self.credentials.sign_table_request(req)
         try:
             response = urlopen(req)
             return response.code
@@ -89,19 +92,18 @@ class TableStorage(Storage):
     def list_tables(self):
         request_necessary = True
         next_table_name = None
-        request_string = "%s/Tables" % self.get_base_url()
+        request_string = "%s/Tables" % self.base_url
         
         while request_necessary:
             request = self._get_tables_request(request_string, next_table_name)
-            request_necessary, next_table_name =\
-                self._get_tables_continuation_token(request)
+            request_necessary, next_table_name = self._get_tables_continuation_token(request)
             
             for table in self._get_tables(request):
                 yield table
 
     def get_entity(self, table_name, partition_key, row_key):
         request_object = Request("%s/%s(PartitionKey='%s',RowKey='%s')" % \
-            (self.get_base_url(), table_name, partition_key, row_key))
+            (self.base_url, table_name, partition_key, row_key))
         request = self._get_signed_request(request_object)
         response = request.read()
         dom = etree.fromstring(response)
@@ -111,7 +113,7 @@ class TableStorage(Storage):
     def get_entities(self, table_name, partition_key=None, top=None, filters=None):
         """Get entities optionally filtered by partition key, number of results,
          or by a custom filter string."""
-        request_string = self.get_base_url() + "/" + table_name + "()"
+        request_string = self.base_url + "/" + table_name + "()"
         if partition_key and "PartitionKey" not in filters:
            if filters:
                filters += "%20and%20"
@@ -141,7 +143,7 @@ class TableStorage(Storage):
 
     def delete_entity(self, table_name, partition_key, row_key):
         request_string = "%s/%s(PartitionKey='%s',RowKey='%s')" % \
-            (self.get_base_url(), table_name, partition_key, row_key)
+            (self.base_url, table_name, partition_key, row_key)
         request_object = Request("DELETE",request_string)
         request = self._get_signed_request(request_object)
 

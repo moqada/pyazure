@@ -36,7 +36,8 @@ except ImportError:
     from xml.etree import ElementTree as etree
 from urllib2 import Request, urlopen, URLError
 
-from util import *
+from . import Storage
+from pyazure.util import *
 
 class QueueMessage(): pass
 
@@ -47,15 +48,16 @@ class Queue(object):
         self.metadata = metadata
 
 class QueueStorage(Storage):
-    def __init__(self, host, account_name, secret_key,
-            use_path_style_uris=None):
-        super(QueueStorage, self).__init__(host, account_name, secret_key,
-            use_path_style_uris)
+    CLOUD_HOST = "queue.core.windows.net"
+    DEVSTORE_HOST = "127.0.0.1:10001"
+    
+    def __init__(self, *args, **kwargs):
+        super(QueueStorage, self).__init__(*args, **kwargs)
 
     def create_queue(self, name):
-        req = RequestWithMethod("PUT", "%s/%s" % (self.get_base_url(), name))
+        req = RequestWithMethod("PUT", "%s/%s" % (self.base_url, name))
         req.add_header("Content-Length", "0")
-        self._credentials.sign_request(req)
+        self.credentials.sign_request(req)
         try:
             response = urlopen(req)
             return response.code
@@ -63,8 +65,8 @@ class QueueStorage(Storage):
             return e.code
 
     def delete_queue(self, name):
-        req = RequestWithMethod("DELETE", "%s/%s" % (self.get_base_url(), name))
-        self._credentials.sign_request(req)
+        req = RequestWithMethod("DELETE", "%s/%s" % (self.base_url, name))
+        self.credentials.sign_request(req)
         try:
             response = urlopen(req)
             return response.code
@@ -73,7 +75,7 @@ class QueueStorage(Storage):
     
     def list_queues(self, prefix=None, marker=None, maxresults=None,
                     include_metadata=False):
-        request_string = self.get_base_url() + "/?comp=list"
+        request_string = self.base_url + "/?comp=list"
         if prefix:
             request_string = add_url_parameter(request_string, "prefix", prefix)
         if marker:
@@ -85,7 +87,7 @@ class QueueStorage(Storage):
             request_string = add_url_parameter(request_string, "include",
                                                "metadata")
         req = Request(request_string)
-        req = self._credentials.sign_request(req)
+        req = self.credentials.sign_request(req)
         response = urlopen(req)
         dom = etree.fromstring(response.read())
         entries = dom.findall(".//Queue")
@@ -95,8 +97,8 @@ class QueueStorage(Storage):
 
     def get_queue_metadata(self, queue_name):
         req = RequestWithMethod("HEAD", "%s/%s?comp=metadata" %
-            (self.get_base_url(), queue_name))
-        self._credentials.sign_request(req)
+            (self.base_url, queue_name))
+        self.credentials.sign_request(req)
         try:
             response = urlopen(req)
         except URLError, e:
@@ -111,11 +113,11 @@ class QueueStorage(Storage):
 
     def set_queue_metadata(self, queue_name, metadata={}):
         req = RequestWithMethod("PUT", "%s/%s?comp=metadata" %
-            (self.get_base_url(), queue_name))
+            (self.base_url, queue_name))
         req.add_header("Content-Length", "0")
         for k,v in metadata.iteritems():
             req.add_header("x-ms-meta-"+unicode(k), unicode(v))
-        self._credentials.sign_request(req)
+        self.credentials.sign_request(req)
         try:
             response = urlopen(req)
         except URLError, e:
@@ -139,10 +141,10 @@ class QueueStorage(Storage):
 
     def put_message(self, queue_name, payload):
         data = "<QueueMessage><MessageText>%s</MessageText></QueueMessage>" % base64.encodestring(payload)
-        req = RequestWithMethod("POST", "%s/%s/messages" % (self.get_base_url(), queue_name), data=data)
+        req = RequestWithMethod("POST", "%s/%s/messages" % (self.base_url, queue_name), data=data)
         req.add_header("Content-Type", "application/xml")
         req.add_header("Content-Length", len(data))
-        self._credentials.sign_request(req)
+        self.credentials.sign_request(req)
         try:
             response = urlopen(req)
             return response.code
@@ -150,8 +152,8 @@ class QueueStorage(Storage):
             return e.code
 
     def get_message(self, queue_name):
-        req = Request("%s/%s/messages" % (self.get_base_url(), queue_name))
-        self._credentials.sign_request(req)
+        req = Request("%s/%s/messages" % (self.base_url, queue_name))
+        self.credentials.sign_request(req)
         response = urlopen(req)
         dom = etree.fromstring(response.read())
         messages = dom.findall('QueueMessage')
@@ -168,8 +170,8 @@ class QueueStorage(Storage):
     def delete_message(self, queue_name, message):
         id = message.id
         pop_receipt = message.pop_receipt
-        req = RequestWithMethod("DELETE", "%s/%s/messages/%s?popreceipt=%s" % (self.get_base_url(), queue_name, id, pop_receipt))
-        self._credentials.sign_request(req)
+        req = RequestWithMethod("DELETE", "%s/%s/messages/%s?popreceipt=%s" % (self.base_url, queue_name, id, pop_receipt))
+        self.credentials.sign_request(req)
         try:
             response = urlopen(req)
             return response.code
@@ -190,9 +192,9 @@ class QueueStorage(Storage):
         return queue
     
     def _clear_messages(self, queue_name):
-        request_string = self.get_base_url() + "/" + queue_name + "/messages"
+        request_string = self.base_url + "/" + queue_name + "/messages"
         req = RequestWithMethod("DELETE", request_string)
-        req = self._credentials.sign_request(req)
+        req = self.credentials.sign_request(req)
         try:
             response = urlopen(req)
             # A successful operation returns status code 204 (No Content)

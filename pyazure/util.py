@@ -59,21 +59,11 @@ log.addHandler(console_handler)
 
 # Constants
 ################################################################################
-DEVSTORE_ACCOUNT = "devstoreaccount1"
-DEVSTORE_SECRET_KEY = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
-
-DEVSTORE_BLOB_HOST = "127.0.0.1:10000"
-DEVSTORE_QUEUE_HOST = "127.0.0.1:10001"
-DEVSTORE_TABLE_HOST = "127.0.0.1:10002"
 SERVICE_MANAGEMENT_HOST = "management.core.windows.net"
 
-CLOUD_QUEUE_HOST = "queue.core.windows.net"
-CLOUD_BLOB_HOST = "blob.core.windows.net"
-CLOUD_TABLE_HOST = "table.core.windows.net"
-
+PREFIX_STORAGE_HEADER = "x-ms-"
 PREFIX_PROPERTIES = "x-ms-prop-"
 PREFIX_METADATA = "x-ms-meta-"
-PREFIX_STORAGE_HEADER = "x-ms-"
 
 MANAGEMENT_VERSION_HEADER = "x-ms-version"
 MANAGEMENT_VERSION = "2011-10-01"
@@ -400,69 +390,6 @@ def build_wasm_request_body(xml_as_odict, builder=None, root=True, indent=0):
         body += NEW_LINE
         return body
 
-# Windows Azure Storage APIs classes
-################################################################################
-class SharedKeyCredentials(object):
-    def __init__(self, account_name, account_key, use_path_style_uris = None):
-        self._account = account_name
-        self._key = base64.decodestring(account_key)
-
-    def _sign_request_impl(self, request, for_tables = False, use_path_style_uris = None):
-        (scheme, host, path, query, fragment) = \
-            urlsplit(request.get_full_url())
-        if use_path_style_uris:
-            path = path[path.index('/'):]
-        
-        if use_path_style_uris is None:
-            use_path_style_uris = re.match('^[\d.:]+$', host) is not None
-
-        #RFC 1123
-        request.add_header(PREFIX_STORAGE_HEADER + 'date', get_azure_time())
-        canonicalized_headers = NEW_LINE.join(('%s:%s' % (k.lower(), request.get_header(k).strip()) for k in sorted(request.headers.keys(), lambda x,y: cmp(x.lower(), y.lower())) if k.lower().startswith(PREFIX_STORAGE_HEADER)))
-
-        # verb
-        string_to_sign = request.get_method().upper() + NEW_LINE
-        
-        for field in ['Content-encoding', 'Content-language', 'Content-length', 'Content-MD5', 'Content-Type']:
-            if request.has_header(field):
-                string_to_sign += request.get_header(field)
-            string_to_sign += NEW_LINE
-        
-        # Date
-        if for_tables:
-            string_to_sign += request.get_header(PREFIX_STORAGE_HEADER.capitalize() + 'date') + NEW_LINE
-        else:
-            string_to_sign += NEW_LINE
-
-        for field in ['If-modified-since', 'If-match', 'If-none-match', 'If-unmodified-since', 'Range']:
-            if request.get_header(field) is not None:
-                string_to_sign += request.get_header(field)
-            string_to_sign += NEW_LINE
-        
-        # Canonicalized headers
-        if not for_tables:
-            string_to_sign += canonicalized_headers + NEW_LINE
-        
-        # Canonicalized resource
-        string_to_sign +=  "/" + self._account + path
-        for key, value in parse_qs(query).iteritems():
-            string_to_sign += NEW_LINE
-            string_to_sign += key + ":" + value[0]
-        
-        print string_to_sign
-        
-        request.add_header('Authorization', 'SharedKey ' + self._account + ':'
-            + base64.encodestring(hmac.new(self._key,
-            unicode(string_to_sign).encode("utf-8"),
-            hashlib.sha256).digest()).strip())
-        return request
-
-    def sign_request(self, request, use_path_style_uris = None):
-        return self._sign_request_impl(request, use_path_style_uris)
-
-    def sign_table_request(self, request, use_path_style_uris = None):
-        return self._sign_request_impl(request, for_tables = True,
-            use_path_style_uris = use_path_style_uris)
 
 class RequestWithMethod(urllib2.Request):
     '''Subclass urllib2.Request to add the capability of using methods other
@@ -476,43 +403,10 @@ class RequestWithMethod(urllib2.Request):
 
     def get_method(self):
         return self._method
-
-#class RequestWithMethod(urllib2.Request):
-#  def __init__(self, *args, **kwargs):
-#    self._method = kwargs.get('method')
-#    if self._method:
-#        del kwargs['method']
-#    urllib2.Request.__init__(self, *args, **kwargs)
-#
-#  def get_method(self):
-#    return self._method if self._method else super(RequestWithMethod, self).get_method()
-
-class Storage(object):
-    def __init__(self, host, account_name, secret_key, use_path_style_uris):
-        self._host = host
-        self._account = account_name
-        self._key = secret_key
-        if use_path_style_uris is None:
-            use_path_style_uris = re.match(r'^[^:]*[\d:]+$', self._host)
-        self._use_path_style_uris = use_path_style_uris
-        self._credentials = SharedKeyCredentials(self._account, self._key)
-
-    def get_base_url(self):
-        if self._use_path_style_uris:
-            return "http://%s/%s" % (self._host, self._account)
-        else:
-            return "http://%s.%s" % (self._account, self._host)
-
-
+    
+    
 # Windows Azure Management API
 ################################################################################
-
-def create_data_connection_string(storage_account_name, storage_account_key):
-    if storage_account_name != DEVSTORE_ACCOUNT:
-        return u'DefaultEndpointsProtocol=https;AccountName=%s;AccountKey=%s'\
-            % (storage_account_name, storage_account_key)
-    else:
-        return u'UseDevelopmentStorage=true'
 
 class ServiceManagementEndpoint(object):
     """Base class for the various service management API operation groups."""
