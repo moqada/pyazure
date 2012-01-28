@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(name='pyazure',
-    version='0.2.1',
+    version='0.2.2',
     description='Python wrapper around Windows Azure storage and management REST APIs',
     url='https://github.com/bmb/pyazure',
-    packages = ['pyazure'],
+    packages = find_packages(),
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: GNU General Public License (GPL)',
