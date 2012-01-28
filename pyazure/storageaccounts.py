@@ -40,12 +40,11 @@ class StorageAccounts(ServiceManagementEndpoint):
 
     wasm_ops = []
 
-    def __init__(self, management_cert_path, subscription_id):
+    def __init__(self, *args, **kwargs):
         log.debug('init storage accounts')
         self.wasm_ops = self.get_wasm_ops()
         self._locations = None
-        super(StorageAccounts, self).__init__(management_cert_path,
-            subscription_id)
+        super(StorageAccounts, self).__init__(*args, **kwargs)
 
     @property
     def base_url(self):
@@ -57,7 +56,7 @@ class StorageAccounts(ServiceManagementEndpoint):
         # cached list of data center locations for deployments
         if not self._locations:
             self._locations = list(Locations(self.cert,
-                self.sub_id).list_locations())
+                self.sub_id, self.key).list_locations())
         return self._locations
 
     def get_wasm_ops(self):
