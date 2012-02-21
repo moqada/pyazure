@@ -1,5 +1,6 @@
+import mimetypes
 import StringIO
-import sys
+import urlparse
 
 from django.conf import settings
 from django.core.files import File
@@ -73,7 +74,8 @@ class AzureBlockStorage(Storage):
             content_str = ''.join(chunk for chunk in content.chunks())
         else:
             content_str = content.read()
-        self.connection.blobs.put_blob(self.container_name, str(name), content_str)
+        self.connection.blobs.put_blob(self.container_name, str(name), content_str,
+                                       mimetypes.guess_type(name)[0])
         return name
 
     def exists(self, name):

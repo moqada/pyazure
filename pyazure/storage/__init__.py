@@ -28,7 +28,7 @@ class StorageSharedKeyCredentials(object):
         # verb
         string_to_sign = request.get_method().upper() + NEW_LINE
         
-        for field in ['Content-encoding', 'Content-language', 'Content-length', 'Content-MD5', 'Content-Type']:
+        for field in ['Content-encoding', 'Content-language', 'Content-length', 'Content-MD5', 'Content-type']:
             if request.has_header(field):
                 string_to_sign += request.get_header(field)
             string_to_sign += NEW_LINE
