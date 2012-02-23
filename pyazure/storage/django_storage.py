@@ -85,9 +85,9 @@ class AzureBlockStorage(Storage):
             if blob[0] == name:
                 return True
         return False
-    
+
     def get_available_name(self, name):
-        return name
+        return super(AzureBlockStorage, self).get_available_name(name.replace('\\', '/'))
 
     def delete(self, name):
         if self.exists(name):
