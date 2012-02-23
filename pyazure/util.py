@@ -32,14 +32,10 @@ import base64
 import re
 import time
 import math
-import hmac
-import hashlib
 import urllib2
 import httplib
 import os.path
-from urlparse import urlsplit, urljoin, parse_qs
 from datetime import datetime, timedelta
-from StringIO import StringIO
 import logging
 try:
     # new in Python2.7

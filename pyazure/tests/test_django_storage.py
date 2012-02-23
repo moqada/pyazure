@@ -4,6 +4,7 @@ from urllib2 import urlopen
 
 from django.conf import settings
 from pyazure.storage.django_storage import AzureBlockStorage
+from pyazure.tests.utils import clear_storage
 
 
 class PublicContainerTestCase(TestCase):
@@ -11,8 +12,8 @@ class PublicContainerTestCase(TestCase):
         self.storage = AzureBlockStorage()
 
     def tearDown(self):
-        for blob in self.storage.connection.blobs.list_blobs(self.storage.container_name):
-            self.storage.connection.blobs.delete_blob(self.storage.container_name, blob[0])
+        clear_storage(self.storage.connection.blobs,
+                      self.storage.container_name)
 
     def test_content_type(self):
         content = 'PublicContainerTestCase.test_content_type'
@@ -46,8 +47,8 @@ class PrivateContainerTestCase(TestCase):
         self.storage = AzureBlockStorage(settings.PRIVATE_AZURE_FILES)
 
     def tearDown(self):
-        for blob in self.storage.connection.blobs.list_blobs(self.storage.container_name):
-            self.storage.connection.blobs.delete_blob(self.storage.container_name, blob[0])
+        clear_storage(self.storage.connection.blobs,
+            self.storage.container_name)
 
     def test_url(self):
         content = 'PrivateContainerTestCase.test_url'

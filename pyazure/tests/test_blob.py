@@ -1,8 +1,10 @@
 from StringIO import StringIO
 from unittest import TestCase
 
-from pyazure.storage import BlobStorage
 from django.conf import settings
+
+from pyazure.storage import BlobStorage
+from pyazure.tests.utils import clear_storage
 
 
 class SaveTestCase(TestCase):
@@ -13,8 +15,7 @@ class SaveTestCase(TestCase):
         self.container = settings.AZURE_FILES['container_name']
 
     def tearDown(self):
-        for blob in self.blob.list_blobs(self.container):
-            self.blob.delete_blob(self.container, blob[0])
+        clear_storage(self.blob, self.container)
 
     def test_content_type_header(self):
         """Regression test for Content-type header

@@ -4,7 +4,11 @@ import hashlib
 import hmac
 import re
 import urllib
-from urlparse import urlsplit, urljoin, parse_qs
+from urlparse import urlsplit
+try:
+    from urlparse import parse_qs
+except ImportError:
+    from cgi import parse_qs
 
 from pyazure.util import get_azure_time, NEW_LINE
 
