@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.files import File
 from django.core.files.storage import Storage
 from django.core.exceptions import ImproperlyConfigured
+from pyazure.storage import BlobSharedAccessSignature
 
 try:
     from pyazure import pyazure
@@ -17,7 +18,7 @@ class AzureBlockStorage(Storage):
     Class AzureBlockStorage provides storing files in Microsoft Azure Blob Storage. 
     """
     
-    CONFIG_KEYS = ['account_name', 'key', 'container_name', 'base_url']
+    CONFIG_KEYS = ['account_name', 'key', 'container_name', 'base_url', 'is_private']
 
     def __init__(self, option=settings.AZURE_FILES):
         """Constructor. 
@@ -40,16 +41,17 @@ class AzureBlockStorage(Storage):
             raise ValueError("You didn't specify required options")
             
         for key in self.CONFIG_KEYS:
-            setattr(self, key, option[key])
+            setattr(self, key, option.get(key, False))
         
         # create storage connection
         self.connection = pyazure.PyAzure(self.account_name, self.key)
+        self.access_signature = BlobSharedAccessSignature(self.account_name, self.key)
         
         # create container if neccessary
         for cont in self.connection.blobs.list_containers():
             if cont[0] == self.container_name:
                 return
-        self.connection.blobs.create_container(self.container_name, True)
+        self.connection.blobs.create_container(self.container_name, not self.is_private)
 
     def _open(self, name, mode='rb'):
         """Open a file from database. 
@@ -94,7 +96,10 @@ class AzureBlockStorage(Storage):
     def url(self, name):
         if self.base_url is None:
             raise ValueError("This file is not accessible via a URL.")
-        return urlparse.urljoin(self.base_url, name).replace('\\', '/')
+        url = urlparse.urljoin(self.base_url, name).replace('\\', '/')
+        if self.is_private:
+            url += '?' + self.access_signature.create_signed_qs(self.container_name, name)
+        return url
     
     def size(self, name):
         for blob in self.connection.blobs.list_blobs(self.container_name):
