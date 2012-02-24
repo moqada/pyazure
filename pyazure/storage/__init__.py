@@ -1,8 +1,14 @@
 import base64
+import datetime
 import hashlib
 import hmac
 import re
-from urlparse import urlsplit, urljoin, parse_qs
+import urllib
+from urlparse import urlsplit
+try:
+    from urlparse import parse_qs
+except ImportError:
+    from cgi import parse_qs
 
 from pyazure.util import get_azure_time, NEW_LINE
 
@@ -28,7 +34,7 @@ class StorageSharedKeyCredentials(object):
         # verb
         string_to_sign = request.get_method().upper() + NEW_LINE
         
-        for field in ['Content-encoding', 'Content-language', 'Content-length', 'Content-MD5', 'Content-Type']:
+        for field in ['Content-encoding', 'Content-language', 'Content-length', 'Content-MD5', 'Content-type']:
             if request.has_header(field):
                 string_to_sign += request.get_header(field)
             string_to_sign += NEW_LINE
@@ -66,6 +72,50 @@ class StorageSharedKeyCredentials(object):
     def sign_table_request(self, request, use_path_style_uris = None):
         return self._sign_request_impl(request, for_tables = True,
             use_path_style_uris = use_path_style_uris)
+
+
+class BlobSharedAccessSignature(object):
+    def __init__(self, account_name, account_key):
+        self._account = account_name
+        self._key = base64.decodestring(account_key)
+
+    def create_signature(self, container, path, resource='b', permissions='r',
+                         start='', expiry='', identifier=''):
+        canonicalized_name = '/' + self._account + '/' + container + '/' + path
+        data_to_sign = [
+            permissions,
+            start,
+            expiry,
+            canonicalized_name,
+            identifier
+        ]
+        string_to_sign = NEW_LINE.join(data_to_sign)
+        return base64.encodestring(hmac.new(self._key,
+                                            unicode(string_to_sign).encode("utf-8"),
+                                            hashlib.sha256).digest()).strip()
+
+    def create_signed_qs(self, container, path, resource='b', permissions='r',
+                         start='', expiry='', identifier=''):
+        if not expiry:
+            expiry = (datetime.datetime.utcnow() + datetime.timedelta(minutes=55)).isoformat()[:19] + 'Z'
+        params = {
+            # The permissions associated with the Shared Access Signature. (read)
+            'sp': permissions,
+            # The time at which the Shared Access Signature becomes valid.
+            'ss': start,
+            # The time at which the Shared Access Signature becomes invalid.
+            'se': expiry,
+            # signedresource. Specify b to designate access scope to the content
+            # and metadata of a specific blob in the container.
+            'sr': resource,
+            'sig': self.create_signature(container, path, resource, permissions, start, expiry, identifier)
+        }
+        if identifier:
+            # A unique value that correlates to an access policy specified at the container level.
+            # The signed identifier may have a maximum size of 64 characters.
+            params['si'] = identifier
+        return urllib.urlencode(params)
+
 
 class Storage(object):
     CLOUD_HOST = None

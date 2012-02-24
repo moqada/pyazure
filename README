@@ -10,3 +10,12 @@ There is a project with the same name on Google Code, but it seems abandoned:
 http://code.google.com/p/pyazure/
 
 Management API functionality written and integrated by Blair Bethwaite (bmb@github.com).
+
+Running tests:
+==============
+create file test_settings.py::
+
+    AZURE_ACCOUNT_NAME = 'your azure storage account name'
+    AZURE_ACCOUNT_KEY = 'your azure storage account key'
+
+Then you can use nosetest or tox to run tests.
