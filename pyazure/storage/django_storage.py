@@ -80,8 +80,15 @@ class AzureBlockStorage(Storage):
                                        mimetypes.guess_type(name)[0])
         return name
 
+    def _get_prefix(self, name):
+        prefix = ''
+        if '/' in name:
+            prefix = name.rsplit('/', 1)[0]
+        return prefix
+
     def exists(self, name):
-        for blob in self.connection.blobs.list_blobs(self.container_name):
+        for blob in self.connection.blobs.list_blobs(
+            self.container_name, prefix=self._get_prefix(name)):
             if blob[0] == name:
                 return True
         return False
@@ -102,7 +109,8 @@ class AzureBlockStorage(Storage):
         return url
     
     def size(self, name):
-        for blob in self.connection.blobs.list_blobs(self.container_name):
+        for blob in self.connection.blobs.list_blobs(
+            self.container_name, prefix=self._get_prefix(name)):
             if blob[0] == name:
                 return blob[3]
         return 0
