@@ -32,7 +32,7 @@ try:
     from lxml import etree
 except ImportError:
     from xml.etree import ElementTree as etree
-from urllib2 import Request, urlopen, URLError
+from urllib2 import Request, urlopen, quote, URLError
 
 from . import Storage
 from pyazure.util import RequestWithMethod, TIME_FORMAT
@@ -80,8 +80,11 @@ class BlobStorage(Storage):
             last_modified = time.strptime(properties.find("Last-Modified").text, TIME_FORMAT)
             yield (container_name, etag, last_modified)
 
-    def list_blobs(self, container_name):
-        req = RequestWithMethod("GET", "%s/%s?restype=container&comp=list" % (self.base_url, container_name))
+    def list_blobs(self, container_name, prefix=''):
+        url = "%s/%s?restype=container&comp=list" % (self.base_url, container_name)
+        if prefix:
+            url += '&prefix=' + quote(prefix)
+        req = RequestWithMethod("GET", url)
         req.add_header("x-ms-version", "2011-08-18")
         self.credentials.sign_request(req)
         dom = etree.fromstring(urlopen(req).read())
