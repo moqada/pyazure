@@ -10,9 +10,9 @@ Authors:
 
 License:
     GNU General Public Licence (GPL)
-    
+
     This file is part of pyazure.
-    
+
     pyazure is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -35,12 +35,13 @@ except ImportError:
 from urllib2 import Request, urlopen, quote, URLError
 
 from . import Storage
-from pyazure.util import RequestWithMethod, TIME_FORMAT
+from pyazure.util import (RequestWithMethod, TIME_FORMAT,
+                          build_wasm_request_body, OrderedDict)
 
 class BlobStorage(Storage):
     CLOUD_HOST = "blob.core.windows.net"
     DEVSTORE_HOST = "127.0.0.1:10000"
-    
+
     def __init__(self, *args, **kwargs):
         super(BlobStorage, self).__init__(*args, **kwargs)
 
@@ -71,7 +72,7 @@ class BlobStorage(Storage):
         req.add_header("x-ms-version", "2011-08-18")
         self.credentials.sign_request(req)
         dom = etree.parse(urlopen(req))
-        
+
         containers = dom.findall(".//Container")
         for container in containers:
             container_name = container.find("Name").text
@@ -88,7 +89,7 @@ class BlobStorage(Storage):
         req.add_header("x-ms-version", "2011-08-18")
         self.credentials.sign_request(req)
         dom = etree.fromstring(urlopen(req).read())
-        
+
         blobs = dom.findall(".//Blob")
         for blob in blobs:
             blob_name = blob.find("Name").text
@@ -116,9 +117,46 @@ class BlobStorage(Storage):
         req.add_header("x-ms-version", "2011-08-18")
         self.credentials.sign_request(req)
         return urlopen(req).read()
-    
+
     def delete_blob(self, container_name, blob_name):
         req = RequestWithMethod("DELETE", "%s/%s/%s" % (self.base_url, container_name, blob_name))
         req.add_header("x-ms-version", "2011-08-18")
         self.credentials.sign_request(req)
         return urlopen(req).read()
+
+    def set_blob_service_properties(self, properties):
+        req = RequestWithMethod(
+            'PUT', '%s/?restype=service&comp=properties' % self.base_url)
+        req.add_header("x-ms-version", "2011-08-18")
+        req_body = OrderedDict([('StorageServiceProperties', properties)])
+        req.add_data(build_wasm_request_body(req_body))
+        req.add_header('Content-Type', 'application/xml')
+        req.add_header("Content-Length", str(len(req.data)))
+        self.credentials.sign_request(req)
+        try:
+            response = urlopen(req)
+            return response.code
+        except URLError, e:
+            return e.code
+
+    def get_blob_service_properties(self):
+        req = RequestWithMethod(
+            "GET", "%s/?restype=service&comp=properties" % self.base_url)
+        req.add_header("x-ms-version", "2011-08-18")
+        self.credentials.sign_request(req)
+        dom = etree.fromstring(urlopen(req).read())
+        properties = OrderedDict()
+
+        # FIXME: ちゃんとした再帰の形に
+        def _parse_dom(element, output_dict):
+            children = element.getchildren()
+            if len(children) > 0:
+                output_dict2 = output_dict.setdefault(element.tag, OrderedDict())
+                for child in children:
+                    _parse_dom(child, output_dict2)
+            else:
+                output_dict[element.tag] = element.text
+
+        for child in dom.getchildren():
+            _parse_dom(child, properties)
+        return properties
